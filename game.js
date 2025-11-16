@@ -1,8 +1,11 @@
+
 (() => {
+  // === Canvas & DOM ===
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-
+  const W = canvas.width;
+  const H = canvas.height;
+  
   const scoreEl = document.getElementById('score');
   const bestEl = document.getElementById('best');
   const nitroMeterEl = document.getElementById('nitroMeter');
@@ -12,28 +15,64 @@
   const answerInput = document.getElementById('answerInput');
   const submitBtn = document.getElementById('submitAnswer');
   const giveUpBtn = document.getElementById('giveUp');
+  const popupContent = document.getElementById('popupContent');
 
-  let roadOffset = 0;
-  const lanes = [W*0.25, W*0.5, W*0.75];
+  // === Game State ===
+  const roadWidth = 260;
+  const laneCount = 3;
+  const laneWidth = roadWidth / laneCount;
+  const roadX = (W - roadWidth) / 2;
 
   const player = {
-    x: W/2, y: H-120, w:46, h:80, color:'#1ec7a7',
-    speed: 4, boostTimer:0, invincible:false,
-    shieldTimer:0, nitro:100, nitroMax:100, nitroConsump:20
+    x: roadX + laneWidth * 1 + laneWidth / 2 - 18,
+    y: H - 110,
+    w: 36,
+    h: 70
   };
 
-  const enemies = [];
-  const pickups = [];
-  let spawnTimer = 0, spawnInterval = 900, difficultyTime = 0;
-  let last = performance.now(), score = 0, running = true;
-  let keys = {};
-  let best = parseInt(localStorage.getItem('nv_best')||'0',10);
-  let startTime = Date.now();
-  bestEl.textContent = best;
-   
-  const derivativeQuestions = [
-  [
-  {q: 'Tính đạo hàm f(x)=x^2', a: '2x'},
+  let enemies = [];
+  let spawnTimer = 0;
+  let spawnInterval = 900; // ms
+  let difficultyTime = 0;
+
+  let roadOffset = 0;
+  let baseSpeed = 2.7;
+  let currentSpeed = baseSpeed;
+  let nitro = 60; // 0–100
+  let running = true;
+  let inQuestion = false;
+  let score = 0;
+  let best = 0;
+  let lastTime = performance.now();
+  let currentQuestion = null;
+  let shieldActive = false;
+  let shieldTimer = 0;
+
+  let freePass = 0; // số lượt miễn sai
+  let items = [];
+
+  // === Load best score from localStorage (nếu có) ===
+  try {
+    const saved = localStorage.getItem('ne-xe-best');
+    if (saved) best = parseInt(saved, 10) || 0;
+  } catch (e) {
+    // ignore if localStorage bị chặn
+  }
+  bestEl.textContent = best.toString();
+const ITEM_TYPES = {
+  SHIELD: "shield",
+  FREEPASS: "freepass"
+};
+
+  // === Question Bank (đã rút gọn & SẠCH LỖI NHÁY) ===
+  const questions = [
+    // Phương trình / đại số
+    { q: 'Giải PT: x^2 - 5x + 6 = 0. Tính x1 + x2?', a: '5' },
+    { q: 'Giải PT: x^2 - 17x + 72 = 0. Tính x1 + x2?', a: '17' },
+    { q: 'Giải PT: x^2 - 10x + 16 = 0. Tính x1 * x2?', a: '16' },
+    { q: 'Giải PT: 2x - 5 = 9. Tính x?', a: '7' },
+    { q: 'Giải PT: 3x + 4 = 1. Tính x?', a: '-1' },
+    {q: 'Tính đạo hàm f(x)=x^2', a: '2x'},
   {q: 'Tính đạo hàm f(x)=3x^3 + 5x', a: '9x^2 + 5'},
   {q: 'Tính đạo hàm f(x)=7', a: '0'},
   {q: 'Tính đạo hàm f(x)=2x^5 - x^3 + 4', a: '10x^4 - 3x^2'},
@@ -117,16 +156,7 @@
   {q: 'Tính đạo hàm f(x)=x^3 - 4x + 7', a: '3x^2 - 4'},
   {q: 'Tính đạo hàm f(x)=e^x + ln(x) + sin(x)', a: 'e^x + 1/x + cos(x)'},
   {q: 'Tính đạo hàm f(x)=x^2 tan(x)', a: '2x tan(x) + x^2 sec^2(x)'},
-  {q: 'Tính đạo hàm f(x)=x^3 cot(x)', a: '3x^2 cot(x) - x^3 csc^2(x)'}
-]
-
-];
-
-const integralQuestions = [
-  {q: 'Tính ∫0^1 x dx', a: '0.5'},
-  {q: 'Tính ∫0^2 x^2 dx', a: '8/3'},
-  {q: 'Tính ∫1^3 (2x) dx', a: '8'},
-  [
+  {q: 'Tính đạo hàm f(x)=x^3 cot(x)', a: '3x^2 cot(x) - x^3 csc^2(x)'},
   {q: 'Tính ∫ 2x dx', a: 'x^2 + C'},
   {q: 'Tính ∫ (3x^2 + 5) dx', a: 'x^3 + 5x + C'},
   {q: 'Tính ∫ 0 dx', a: 'C'},
@@ -211,14 +241,8 @@ const integralQuestions = [
   {q: 'Tính ∫ (3x^2 - 4) dx', a: 'x^3 - 4x + C'},
   {q: 'Tính ∫ (e^x + 1/x + cos(x)) dx', a: 'e^x + ln|x| + sin(x) + C'},
   {q: 'Tính ∫ (2x tan(x) + x^2 sec^2(x)) dx', a: 'x^2 tan(x) + C'},
-  {q: 'Tính ∫ (3x^2 cot(x) - x^3 csc^2(x)) dx', a: 'x^3 cot(x) + C'}
-]
-
-];
-
-const antiderivativeQuestions = [
-[
-  {q: 'Tìm nguyên hàm F(x) sao cho F\'(x)=2x', a: 'x^2'},
+  {q: 'Tính ∫ (3x^2 cot(x) - x^3 csc^2(x)) dx', a: 'x^3 cot(x) + C'},
+    {q: 'Tìm nguyên hàm F(x) sao cho F\'(x)=2x', a: 'x^2'},
   {q: 'Tìm nguyên hàm F(x) sao cho F\'(x)=3x^2', a: 'x^3'},
   {q: 'Tìm nguyên hàm F(x) sao cho F\'(x)=5x^4', a: 'x^5'},
   
@@ -306,14 +330,7 @@ const antiderivativeQuestions = [
   {q: 'Tìm nguyên hàm F(x) của f(x)=3x^2 - 4', a: 'x^3 - 4x + C'},
   {q: 'Tìm nguyên hàm F(x) của f(x)=e^x + 1/x + cos(x)', a: 'e^x + ln|x| + sin(x) + C'},
   {q: 'Tìm nguyên hàm F(x) của f(x)=2x tan(x) + x^2 sec^2(x)', a: 'x^2 tan(x) + C'},
-  {q: 'Tìm nguyên hàm F(x) của f(x)=3x^2 cot(x) - x^3 csc^2(x)', a: 'x^3 cot(x) + C'}
-]
-
-];
-
-const tamgiac = [
-
-    [
+  {q: 'Tìm nguyên hàm F(x) của f(x)=3x^2 cot(x) - x^3 csc^2(x)', a: 'x^3 cot(x) + C'},
   {q: 'Tam giác ABC vuông tại A, AB=3, AC=4. Tính BC?', a: '5'},
   {q: 'Tam giác ABC vuông tại B, BC=6, AB=8. Tính AC?', a: '10'},
   {q: 'Tam giác ABC vuông tại C, AC=5, BC=12. Tính AB?', a: '13'},
@@ -403,13 +420,8 @@ const tamgiac = [
   {q: 'Tam giác vuông ABC, AB=7, AC=24. Tính BC?', a: '25'},
   {q: 'Tam giác ABC, góc A=60, góc B=50, AC=12. Tính góc C?', a: '70'},
   {q: 'Tam giác ABC, AB=8, AC=15, BC=17. Tính góc B?', a: '28'},
-  {q: 'Tam giác ABC, góc A=45, góc B=45, AC=10. Tính góc C?', a: '90'}
-]
-];
-
-const phuongTrinh = [
-  // 1–10 BẬC 2
-  { q:'Giải PT: x^2 - 5x + 6 = 0. Tính x1 - x2 + 3?', a:'2' },
+  {q: 'Tam giác ABC, góc A=45, góc B=45, AC=10. Tính góc C?', a: '90'},
+   { q:'Giải PT: x^2 - 5x + 6 = 0. Tính x1 - x2 + 3?', a:'2' },
   { q:'Giải PT: x^2 - 7x + 10 = 0. Tính 2x1 - 3x2 + 5?', a:'-1' },
   { q:'Giải PT: x^2 - 3x - 10 = 0. Tính x1 + 2x2 - 4?', a:'7' },
   { q:'Giải PT: x^2 - 8x + 12 = 0. Tính 3x1 - x2 + 1?', a:'13' },
@@ -515,17 +527,12 @@ const phuongTrinh = [
   { q:'Giải PT: x^2 - 5x + 4 = 0. Tính x2 - 2x1?', a:'-3' },
   { q:'Giải PT: x^2 - 7x + 12 = 0. Tính x1 + 5x2?', a:'37' },
   { q:'Giải PT: x^2 - 11x + 18 = 0. Tính x2/x1?', a:'3' },
-  { q:'Giải PT: x^2 - 17x + 72 = 0. Tính x1 + x2?", a:"17' },
+  { q: 'Giải PT: x^2 - 17x + 72 = 0. Tính x1 + x2?', a: '17' },
   { q:'Giải PT: x^2 - 10x + 21 = 0. Tính x1*x2 + 2?', a:'23' },
   { q:'Giải PT: x^3 - 7x^2 + 10x = 0. Tính x1 + x2 + x3?', a:'7' },
   { q:'Giải PT: x^3 - 5x^2 + 8x - 4 = 0. Tính x1 + x2?', a:'4' },
   { q:'Giải PT: x^3 - 9x^2 + 20x - 12 = 0. Tính x3?', a:'3' },
-  { q:'Giải PT: x^3 - 12x^2 + 32x - 24 = 0. Tính x1x3?', a:'12' }
-];
-
-
-// Updated: Added rounding instructions (if result includes decimals)
-const lapphuongTrinh = [
+  { q:'Giải PT: x^3 - 12x^2 + 32x - 24 = 0. Tính x1x3?', a:'12' },
   // ============================
   // 1–30: BẬC 1 (không cần làm tròn)
   // ============================
@@ -652,269 +659,514 @@ const lapphuongTrinh = [
 { q: 'Một xe chạy 25m/s rồi tăng đều đến 40m/s trong 6 giây. Sau đó chạy đều 5 giây. Tính quãng đường tổng (làm tròn 2 chữ số).', a: '325.00' },
 { q: 'Một rocket lao xuống từ 300m với gia tốc 12m/s², nhưng sau 2 giây bật ngược lực đẩy giảm gia tốc còn 4m/s². Tính thời gian chạm đất (làm tròn 2 chữ số).', a: '6.21' },
 { q: 'Một xe mô tô chạy 18m/s, tăng tốc 4m/s² trong 4 giây rồi giảm tốc 2m/s² trong 5 giây. Tính vận tốc cuối (làm tròn 2 chữ số).', a: '20.00' },
-{ q: 'Một vật được ném xuống 12m/s, gia tốc 9.8m/s² trong 3 giây rồi tiếp đất. Tính quãng đường (làm tròn 1 chữ số).', a: '94.5' }
-];
-  
+{ q: 'Một vật được ném xuống 12m/s, gia tốc 9.8m/s² trong 3 giây rồi tiếp đất. Tính quãng đường (làm tròn 1 chữ số).', a: '94.5' },
+  ];
 
-  window.addEventListener('keydown', e => { keys[e.key]=true; if(e.key==='r'||e.key==='R') restart(); });
-  window.addEventListener('keyup', e => keys[e.key]=false);
-  const rand = (a,b)=>a+Math.random()*(b-a);
-// === MOBILE TOUCH CONTROL ===
-canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
+  // === Tạo element báo lỗi trong popup ===
+  const errorEl = document.createElement('p');
+  errorEl.style.color = 'salmon';
+  errorEl.style.display = 'none';
+  errorEl.style.marginTop = '6px';
+  errorEl.style.fontSize = '13px';
+  errorEl.textContent = 'Sai rồi, thử lại nhé!';
+  popupContent.appendChild(errorEl);
 
-    // Nếu chạm 2 ngón -> Nitro
-    if (e.touches.length >= 2) {
-        keys[' '] = true;
-        return;
+  // === Helper ===
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function randChoice(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function clamp(v, min, max) {
+    return v < min ? min : v > max ? max : v;
+  }
+
+  function rectIntersect(a, b) {
+    return !(
+      a.x + a.w < b.x ||
+      a.x > b.x + b.w ||
+      a.y + a.h < b.y ||
+      a.y > b.y + b.h
+    );
+  }
+
+  function normalizeAnswer(str) {
+    let s = (str || '').trim().toLowerCase();
+    s = s.replace(',', '.');
+    return s;
+  }
+function spawnItem() {
+  const lane = randInt(0, laneCount - 1);
+  const x = roadX + lane * laneWidth + laneWidth / 2 - 15;
+  const y = -50;
+  const w = 30;
+  const h = 30;
+
+  const type = Math.random() < 0.5 ? ITEM_TYPES.SHIELD : ITEM_TYPES.FREEPASS;
+
+  items.push({ x, y, w, h, type, speed: currentSpeed + 1 });
+}
+
+  function answersEqual(user, correct) {
+    const uNorm = normalizeAnswer(user);
+    const cNorm = normalizeAnswer(correct);
+
+    // Thử so sánh số (cho phép sai số nhỏ)
+    const uNum = parseFloat(uNorm);
+    const cNum = parseFloat(cNorm);
+    if (!Number.isNaN(uNum) && !Number.isNaN(cNum)) {
+      return Math.abs(uNum - cNum) < 1e-3;
+    }
+
+    // So sánh chuỗi
+    return uNorm === cNorm;
+  }
+
+  // === Question Popup ===
+  function showQuestion() {
+    inQuestion = true;
+    running = false;
+    currentQuestion = randChoice(questions);
+    questionText.textContent = currentQuestion.q;
+    answerInput.value = '';
+    errorEl.style.display = 'none';
+
+    popup.style.display = 'flex';
+    setTimeout(() => {
+      answerInput.focus();
+    }, 10);
+  }
+
+  function hideQuestion() {
+    popup.style.display = 'none';
+    inQuestion = false;
+  }
+
+  function onCorrectAnswer() {
+  // Thưởng nitro, giữ điểm, tiếp tục chơi
+  nitro = clamp(nitro + 30, 0, 100);
+
+  // Xóa hết xe địch để không đụng lại ngay lập tức
+  enemies = [];
+  spawnTimer = 0;
+
+  hideQuestion();
+  inQuestion = false;
+  running = true;
+}
+
+
+  function onGiveUpOrFail() {
+    hideQuestion();
+    endGame();
+  }
+
+  // === Game control ===
+const keys = {
+  left: false,
+  right: false,
+  up: false,
+  down: false,
+  nitro: false,
+};
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+    if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = true;
+    if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = true;
+    if (e.code === 'Space') keys.nitro = true;
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+    if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = false;
+    if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = false;
+
+    if (e.code === 'Space') keys.nitro = false;
+  });
+
+  // Mobile: chạm trái/phải để rẽ, 2 ngón = nitro
+  function handlePointerDown(ev) {
+    const touches = ev.touches ? ev.touches.length : 1;
+
+    if (touches >= 2) {
+      keys.nitro = true;
+      return;
     }
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.touches[0].clientX - rect.left;
+    const x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
 
-    // Trái = rẽ trái
     if (x < rect.width / 2) {
-        keys['ArrowLeft'] = true;
+      keys.left = true;
+      keys.right = false;
+    } else {
+      keys.right = true;
+      keys.left = false;
     }
-    // Phải = rẽ phải
-    else {
-        keys['ArrowRight'] = true;
-    }
-}, { passive:false });
+  }
 
-canvas.addEventListener('touchend', e => {
-    keys['ArrowLeft'] = false;
-    keys['ArrowRight'] = false;
-    keys[' '] = false;  // tắt Nitro
+  function handlePointerUp() {
+    keys.left = false;
+    keys.right = false;
+    keys.nitro = false;
+  }
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    handlePointerDown(e);
+  }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    handlePointerUp();
+  }, { passive: false });
+  canvas.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    handlePointerDown(e);
+  });
+  canvas.addEventListener('mouseup', (e) => {
+    e.preventDefault();
+    handlePointerUp();
+  });
+
+  // === Enemy spawn / reset ===
+  function spawnEnemy() {
+    const lane = randInt(0, laneCount - 1);
+    const x = roadX + lane * laneWidth + laneWidth / 2 - 18;
+    const y = -80;
+    const w = 36;
+    const h = 70;
+    const speed = currentSpeed + 1 + Math.random() * 0.8;
+
+    enemies.push({ x, y, w, h, speed });
+  }
+
+  function resetAfterCrash() {
+    enemies = [];
+    spawnTimer = 0;
+    spawnInterval = 900;
+    difficultyTime = 0;
+
+    player.x = roadX + laneWidth * 1 + laneWidth / 2 - player.w / 2;
+    player.y = H - 110;
+
+    roadOffset = 0;
+  }
+
+  function endGame() {
+    running = false;
+
+    // Cập nhật best
+    if (score > best) {
+      best = score;
+      bestEl.textContent = best.toString();
+      try {
+        localStorage.setItem('ne-xe-best', best.toString());
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // Hiện text "Game Over" bằng canvas (không popup)
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = '28px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', W / 2, H / 2 - 10);
+    ctx.font = '16px monospace';
+    ctx.fillText('Nhấn Enter để chơi lại', W / 2, H / 2 + 20);
+    ctx.restore();
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter' && !running && !inQuestion) {
+      // reset full game
+      score = 0;
+      nitro = 60;
+      resetAfterCrash();
+      running = true;
+    }
+  });
+
+  // === Question events ===
+ submitBtn.addEventListener('click', () => {
+    if (!currentQuestion) return;
+
+    const val = answerInput.value;
+
+    if (answersEqual(val, currentQuestion.a)) {
+        // 🟢 Trả lời đúng → tiếp tục game
+        onCorrectAnswer();
+    } else {
+        // ❌ Trả lời sai
+        if (freePass > 0) {
+            // 🟡 Có free-pass → không thua, chỉ trừ 1
+            freePass--;
+            hideQuestion();
+            running = true;
+        } else {
+            // 🔴 Không có free-pass → reset từ đầu
+            onGiveUpOrFail();
+        }
+    }
 });
 
-  // SPAWN
-  function spawn(dt){
-    spawnTimer -= dt;
-    if(spawnTimer <=0){
-      const t = Math.random();
-      let type='car';
-      if(t>0.86) type='truck';
-      else if(t>0.74) type='barrier';
-      const lane = Math.floor(Math.random()*3);
-      const e = {
-        type, lane, x: lanes[lane], y:-120 - rand(0,120),
-        w:type==='truck'?90:(type==='barrier'?60:56),
-        h:type==='truck'?110:(type==='barrier'?40:90),
-        speed: rand(1.6,3.4) + difficultyTime*0.0005
-      };
-      enemies.push(e);
+// Nhấn Enter để trả lời
+answerInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        submitBtn.click();
+    }
+});
 
-      if(Math.random()<0.12){
-        const ptype = Math.random()<0.5?'nitro':'shield';
-        pickups.push({type:ptype, lane:Math.floor(Math.random()*3), x:0, y:-60-rand(0,80), r:12, speed: rand(1.2,2.2), taken:false});
+// Bấm nút Từ Bỏ → reset từ đầu
+giveUpBtn.addEventListener('click', () => {
+    onGiveUpOrFail();
+});
+
+
+
+
+  // === Update / Draw ===
+function update(dt) {
+  if (!running) return;
+
+  const dtSec = dt / 1000;
+  difficultyTime += dt;
+
+  // =================================
+  //  SPEED TĂNG THEO THỜI GIAN
+  // =================================
+  baseSpeed = 2.7 + difficultyTime / 60000;
+  currentSpeed = baseSpeed;
+
+  // =================================
+  //  NITRO
+  // =================================
+  let usingNitro = false;
+  if (keys.nitro && nitro > 0) {
+    usingNitro = true;
+    currentSpeed *= 1.8;
+    nitro -= 28 * dtSec;
+  } else {
+    nitro += 8 * dtSec;
+  }
+  nitro = clamp(nitro, 0, 100);
+
+  // HUD update
+  speedEl.textContent = currentSpeed.toFixed(1);
+  nitroMeterEl.style.width = nitro + "%";
+
+  // =================================
+  //  PLAYER MOVE 4 CHIỀU
+  // =================================
+  let dirX = 0;
+  let dirY = 0;
+
+  if (keys.left) dirX -= 1;
+  if (keys.right) dirX += 1;
+  if (keys.up) dirY -= 1;
+  if (keys.down) dirY += 1;
+
+  const moveSpeed = usingNitro ? 260 : 180;
+
+  player.x += dirX * moveSpeed * dtSec;
+  player.y += dirY * moveSpeed * dtSec;
+
+  // giới hạn trái phải
+  const minX = roadX + 4;
+  const maxX = roadX + roadWidth - player.w - 4;
+  player.x = clamp(player.x, minX, maxX);
+
+  // giới hạn lên xuống
+  const minY = 50;
+  const maxY = H - player.h - 20;
+  player.y = clamp(player.y, minY, maxY);
+
+  // =================================
+  //  ROAD SCROLL
+  // =================================
+  roadOffset += currentSpeed * 2;
+  if (roadOffset > 40) roadOffset -= 40;
+
+  // =================================
+  //  ENEMY MOVEMENT
+  // =================================
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    e.y += e.speed * 60 * dtSec;
+
+    if (e.y > H + 80) {
+      enemies.splice(i, 1);
+      score += 1;
+    }
+  }
+
+  // =================================
+  //  ITEM MOVEMENT
+  // =================================
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    it.y += (currentSpeed + 1) * 60 * dtSec;
+
+    if (it.y > H + 100) {
+      items.splice(i, 1);
+      continue;
+    }
+  }
+
+  // =================================
+  //  SPAWN ENEMY + ITEM
+  // =================================
+  spawnTimer += dt;
+
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnEnemy();
+    if (spawnInterval > 450) spawnInterval -= 15;
+  }
+
+  // 2% cơ hội spawn item mỗi tick ~ 5–8s mới có 1 cái
+  if (Math.random() < 0.007) {
+    spawnItem();
+  }
+
+  // =================================
+  //  NHẶT VẬT PHẨM
+  // =================================
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+
+    if (rectIntersect(player, it)) {
+      if (it.type === ITEM_TYPES.SHIELD) {
+        shieldActive = true;
+        shieldTimer = 7000; // 7 giây
       }
 
-      spawnInterval = Math.max(380, spawnInterval - 6*(difficultyTime/10000));
-      spawnTimer = spawnInterval + rand(-200,200);
+      if (it.type === ITEM_TYPES.FREEPASS) {
+        freePass += 1;
+      }
+
+      items.splice(i, 1);
     }
   }
 
-  // POPUP HỒI SINH
-  // ===== POPUP HỒI SINH (BẢN SỬA LẠI) =====
-function showPopup() {
-  running = false;
-
-  // Hàm random phần tử kể cả mảng 2 chiều
-  function pick(arr) {
-    const item = arr[Math.floor(Math.random() * arr.length)];
-    return Array.isArray(item)
-      ? item[Math.floor(Math.random() * item.length)]
-      : item;
+  // =================================
+  //  SHIELD TIMER GIẢM
+  // =================================
+  if (shieldActive) {
+    shieldTimer -= dt;
+    if (shieldTimer <= 0) shieldActive = false;
   }
 
-  // Chọn loại câu hỏi
-  const typeRandom = Math.floor(Math.random() * 5);
-  let questionObj;
+  // =================================
+  //  CHECK VA CHẠM ENEMY
+  // =================================
+  for (let i = 0; i < enemies.length; i++) {
+    if (rectIntersect(player, enemies[i])) {
 
-  if (typeRandom === 0) {
-    questionObj = pick(derivativeQuestions);
-  } else if (typeRandom === 1) {
-    questionObj = pick(integralQuestions);
-  } else if(typeRandom== 2){
-    questionObj = pick(tamgiac);
-  } else if(typeRandom==3){
-    questionObj = pick(phuongTrinh);
-  } else{
-    questionObj =pick(lapphuongTrinh);
-  }
+      if (shieldActive) {
+        // có khiên → miễn sát thương
+        enemies.splice(i, 1);
+        continue;
+      }
 
-  // Hiện popup
-  questionText.textContent = questionObj.q;
-  answerInput.value = '';
-  popup.style.display = 'flex';
-  answerInput.focus();
-
-  // ---- Event xử lý ----
-  function closePopup() {
-    popup.style.display = 'none';
-    submitBtn.removeEventListener('click', onSubmit);
-    giveUpBtn.removeEventListener('click', onGiveUp);
-  }
-
-  function onSubmit() {
-    if (answerInput.value.trim() === questionObj.a) {
-      player.nitro = Math.min(player.nitroMax, player.nitro + 10);
-      restart();
-      closePopup();
-    } else {
-      alert('Sai rồi!');
-      closePopup();
+      // không có khiên → bật câu hỏi
+      running = false;
+      showQuestion();
+      break;
     }
   }
 
-  function onGiveUp() {
-    closePopup();
-    draw();
-  }
-
-  submitBtn.addEventListener('click', onSubmit);
-  giveUpBtn.addEventListener('click', onGiveUp);
+  // HUD điểm
+  scoreEl.textContent = score.toString();
 }
 
 
+  function drawRoad() {
+    // nền ngoài đường
+    ctx.fillStyle = '#1b222c';
+    ctx.fillRect(0, 0, W, H);
 
-  function update(dt){
-    if(!running) return;
+    // đường
+    ctx.fillStyle = '#303943';
+    ctx.fillRect(roadX, 0, roadWidth, H);
 
-    const moveSpeed = player.speed * (dt / 16);
+    // vạch biên
+    ctx.fillStyle = '#d0e6ff';
+    ctx.fillRect(roadX - 4, 0, 4, H);
+    ctx.fillRect(roadX + roadWidth, 0, 4, H);
 
-    // Điều khiển bằng phím
-    if (keys['ArrowLeft'] || keys['a']) player.x -= moveSpeed;
-    if (keys['ArrowRight'] || keys['d']) player.x += moveSpeed;
-    if (keys['ArrowUp'] || keys['w']) player.y -= moveSpeed;
-    if (keys['ArrowDown'] || keys['s']) player.y += moveSpeed;
-
-    // Giới hạn xe trong đường
-    player.x = Math.max(40 + player.w/2, Math.min(W - 40 - player.w/2, player.x));
-    player.y = Math.max(player.h/2, Math.min(H - player.h/2, player.y));
-
-    // Nitro
-    if ((keys[' '] || keys['Spacebar']) && player.nitro > 0) {
-        player.invincible = true;
-        player.boostTimer = 1;
-        player.nitro -= player.nitroConsump * (dt / 1000);
-        if (player.nitro < 0) player.nitro = 0;
+    // vạch phân làn
+    ctx.fillStyle = '#f5f7ff';
+    const dashH = 30;
+    const gap = 30;
+    for (let lane = 1; lane < laneCount; lane++) {
+      const x = roadX + lane * laneWidth;
+      for (let y = -dashH; y < H + dashH; y += dashH + gap) {
+        const yy = y + (roadOffset % (dashH + gap));
+        ctx.fillRect(x - 2, yy, 4, dashH);
+      }
+    }
+  }
+function drawItems() {
+  for (const it of items) {
+    if (it.type === ITEM_TYPES.SHIELD) {
+      ctx.fillStyle = "#00eaff"; // xanh khiên
     } else {
-        if (player.shieldTimer <= 0) player.invincible = false;
-        player.boostTimer = 0;
+      ctx.fillStyle = "#ffdd00"; // vàng free-pass
     }
 
-    // Shield
-    if (player.shieldTimer > 0) {
-        player.shieldTimer -= dt;
-        if (player.shieldTimer <= 0) player.invincible = false;
-    }
-
-    difficultyTime += dt;
-    const speedMultiplier = 1 + Math.min(1.5, difficultyTime / 30000);
-
-    spawn(dt);
-
-    // Enemy update & collision
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        const e = enemies[i];
-        const dtSec = dt / 1000;
-        const speedBoost = Math.min((Date.now() - startTime) / 1000 * 0.0015, 1.2);
-
-        const currentSpeed =
-            e.speed * 90 *
-            (speedMultiplier / 1.4) *
-            (1 + Math.max(0, score / 1200));
-
-        e.y += currentSpeed * (player.boostTimer ? 2 : 1) * dtSec + speedBoost;
-
-        if (e.y > H + 200) {
-            enemies.splice(i, 1);
-            score += 1;
-        }
-
-        if (!player.invincible) {
-            const ebox = { x: e.x - e.w/2, y: e.y - e.h/2, w: e.w, h: e.h };
-            const pbox = { x: player.x - player.w/2, y: player.y - player.h/2, w: player.w, h: player.h };
-
-            if (rectIntersect(ebox, pbox)) {
-                if (score > best) {
-                    best = score;
-                    localStorage.setItem('nv_best', best);
-                    bestEl.textContent = best;
-                }
-                showPopup();
-            }
-        }
-    }
-
-    // Pickups
-    for (let i = pickups.length - 1; i >= 0; i--) {
-        const p = pickups[i];
-        p.x = lanes[p.lane];
-
-        const d = Math.hypot(p.x - player.x, p.y - player.y);
-
-        if (d < p.r + Math.max(player.w, player.h) * 0.35) {
-            if (p.type === 'nitro')
-                player.nitro = Math.min(player.nitroMax, player.nitro + 28);
-            else if (p.type === 'shield') {
-                player.invincible = true;
-                player.shieldTimer = 6000;
-            }
-
-            pickups.splice(i, 1);
-            score += 2;
-        }
-    }
-
-    // Score & UI
-    score += dt / 120;
-    scoreEl.textContent = Math.floor(score);
-    speedEl.textContent = speedMultiplier.toFixed(2);
-    nitroMeterEl.style.width = Math.max(0, Math.min(100, player.nitro)) + '%';
+    ctx.beginPath();
+    ctx.arc(it.x + it.w/2, it.y + it.h/2, it.w/2, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
+  function drawPlayer() {
+    ctx.save();
+    ctx.fillStyle = '#4af';
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    // kính
+    ctx.fillStyle = '#cfe';
+    ctx.fillRect(player.x + 6, player.y + 10, player.w - 12, 18);
+    // đèn hậu
+    ctx.fillStyle = '#ff6666';
+    ctx.fillRect(player.x + 4, player.y + player.h - 8, player.w - 8, 4);
+    ctx.restore();
+  }
 
-  function draw(){
-    ctx.clearRect(0,0,W,H);
-    ctx.fillStyle='#05220f'; ctx.fillRect(0,0,W,H);
-
-    ctx.strokeStyle='#e6e6e6'; ctx.lineWidth=4; ctx.setLineDash([20,18]);
-    for(let i=1;i<=2;i++){ const lx=W*i/3; ctx.beginPath(); ctx.moveTo(lx,-50+roadOffset); ctx.lineTo(lx,H+50+roadOffset); ctx.stroke(); }
-    ctx.setLineDash([]);
-    roadOffset += 4 + (1 + Math.min(1.5,difficultyTime/30000))*2; if(roadOffset>38) roadOffset=0;
-
-    pickups.forEach(p=>{ ctx.beginPath(); ctx.fillStyle=p.type==='nitro'?'#ffdb4d':'#4dd6ff'; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#000'; ctx.font='12px monospace'; ctx.textAlign='center'; ctx.fillText(p.type==='nitro'?'N':'S',p.x,p.y+4);
-    });
-
-    enemies.forEach(e=>{ ctx.fillStyle=e.type==='truck'?'#b64':(e.type==='barrier'?'#7a7a7a':'#e64d4d'); ctx.fillRect(e.x-e.w/2,e.y-e.h/2,e.w,e.h);
-      if(e.type!=='barrier'){ ctx.fillStyle='#111'; ctx.fillRect(e.x-e.w/4,e.y-e.h/6,e.w/2,e.h/6);}
-    });
-
-    if(player.invincible){ ctx.save(); ctx.shadowBlur=20; ctx.shadowColor='#f60'; }
-    ctx.fillStyle=player.color; roundRect(ctx,player.x-player.w/2,player.y-player.h/2,player.w,player.h,8,true);
-    if(player.invincible) ctx.restore();
-
-    ctx.fillStyle='#fff'; ctx.fillRect(player.x-10,player.y-player.h/2-6,20,4);
-
-    if(!running){
-      ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='#ffc6c6'; ctx.font='48px monospace'; ctx.textAlign='center'; ctx.fillText('GAME OVER',W/2,H/2-10);
-      ctx.font='18px monospace'; ctx.fillStyle='#fff'; ctx.fillText('Score: '+Math.floor(score)+' (R để chơi lại)',W/2,H/2+22);
+  function drawEnemies() {
+    ctx.save();
+    for (const e of enemies) {
+      ctx.fillStyle = '#f55';
+      ctx.fillRect(e.x, e.y, e.w, e.h);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(e.x + 6, e.y + 10, e.w - 12, 18);
     }
+    ctx.restore();
   }
 
-  function rectIntersect(a,b){ return !(a.x+a.w<b.x||a.x>b.x+b.w||a.y+a.h<b.y||a.y>b.y+b.h); }
+  function loop(now) {
+    const dt = Math.min(40, now - lastTime);
+    lastTime = now;
 
-  function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); if(fill) ctx.fill(); }
+    update(dt);
 
-  function restart(){ enemies.length=0; pickups.length=0; spawnTimer=0; spawnInterval=900; difficultyTime=0;
-    player.x=W/2; player.y=H-120; player.boostTimer=0; player.invincible=false; player.shieldTimer=0; player.nitro=100; score=0; startTime=Date.now(); running=true;
+    // Vẽ cảnh
+    drawRoad();
+    drawEnemies();
+    drawPlayer();
+    drawItems();
+    requestAnimationFrame(loop);
   }
 
-  function loop(now){ const dt = Math.min(40,now-last); last=now; update(dt); draw(); requestAnimationFrame(loop); }
-  last=performance.now(); requestAnimationFrame(loop);
+  resetAfterCrash();
+  requestAnimationFrame(loop);
 })();
