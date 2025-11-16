@@ -1,33 +1,144 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <title>Né Xe</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>Né Xe • Pro Edition</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- FONT ĐẸP -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="wrap">
-  <canvas id="c" width="420" height="640"></canvas>
+  <div class="bg-gradient"></div>
 
-  <div id="ui">
-    <div class="panel">Score: <span id="score">0</span><br>Best: <span id="best">0</span></div>
-    <div class="panel">Nitro
-      <div class="meter"><i id="nitroMeter"></i></div>
+  <div class="page-frame">
+    <!-- ======= TOP BAR ======= -->
+    <header class="top-bar">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <span class="brand-text">NÉ XE</span>
+        <span class="brand-sub">Pro Edition</span>
+      </div>
+
+      <div class="top-right-controls">
+        <div class="top-right-hint">
+          ← → / A D • Space = Nitro
+        </div>
+
+        <button id="toggleInfo" class="toggle-btn">Ẩn bảng</button>
+      </div>
+    </header>
+
+    <!-- ======= MAIN LAYOUT ======= -->
+    <main class="main-layout">
+      <section class="game-shell">
+
+        <!-- ===== HUD ===== -->
+        <div id="hud" class="hud">
+          <div class="hud-item">
+            🧮 <span>Điểm:</span> <b id="score">0</b>
+          </div>
+
+          <div class="hud-item">
+            🏆 <span>Kỷ lục:</span> <b id="best">0</b>
+          </div>
+
+          <div class="hud-item">
+            ⚡ <span>Tốc độ:</span> <b id="speed">0</b>
+          </div>
+
+          <div class="hud-item">
+            🔥 Nitro:
+            <div id="nitroBar" class="nitro-bar">
+              <div id="nitroMeter" class="nitro-meter"></div>
+            </div>
+          </div>
+
+          <div class="hud-item">
+            🛡 Shield: <b id="shieldHUD">0s</b>
+          </div>
+
+          <div class="hud-item">
+            ⭐ Free-Pass: <b id="freepassHUD">0</b>
+          </div>
+        </div>
+
+        <!-- ===== GAME CANVAS ===== -->
+        <div id="wrap" class="canvas-wrap">
+          <canvas id="c" width="420" height="640"></canvas>
+        </div>
+
+        <div class="helper-keys">
+          Nhấn <span class="key">Enter</span> để chơi lại
+        </div>
+      </section>
+
+      <!-- ======= INFO PANEL ======= -->
+      <aside id="infoPanel" class="info-panel">
+        <h2>📘 Luật chơi</h2>
+        <ul>
+          <li>← → / A D để điều khiển xe.</li>
+          <li>Space = Nitro cực nhanh.</li>
+          <li>Đụng xe → hiện câu hỏi.</li>
+          <li>Đúng → tiếp tục game.</li>
+          <li>Sai → chỉ thua khi hết Free-Pass.</li>
+        </ul>
+
+        <h3>🎁 Vật phẩm</h3>
+        <ul>
+          <li>🛡 Khiên: Bất tử 7 giây.</li>
+          <li>⭐ Free-Pass: Miễn sai 1 câu (cộng dồn).</li>
+        </ul>
+
+        <h3>💡 Mẹo</h3>
+        <p>
+          Giữ tốc độ cao để farm điểm nhanh.
+          Dùng Nitro khi đường thẳng dài.
+        </p>
+      </aside>
+
+    </main>
+  </div>
+
+  <!-- ===== POPUP CÂU HỎI ===== -->
+  <div id="popup" class="popup">
+    <div id="popupContent" class="popup-content">
+      <div class="popup-title">Câu hỏi Toán</div>
+      <div id="questionText" class="popup-question"></div>
+
+      <input id="answerInput" class="popup-input" placeholder="Nhập đáp án...">
+
+      <div class="popup-buttons">
+        <button id="submitAnswer" class="btn primary">Trả lời</button>
+        <button id="giveUp" class="btn ghost">Từ bỏ</button>
+      </div>
+
+      <div class="popup-note">Nhấn Enter để gửi nhanh.</div>
     </div>
-    <div class="panel">Speed: <span id="speed">1.0</span>x<br><span class="btnhint">Space = Nitro</span></div>
   </div>
-</div>
-<div id="popup" style="display:none;">
-  <div id="popupContent">
-    <p id="questionText"></p>
-    <input type="text" id="answerInput" placeholder="Nhập câu trả lời"/>
-    <button id="submitAnswer">Xác nhận</button>
-    <button id="giveUp">Từ bỏ</button>
-  </div>
-</div>
 
+  <!-- ===== JS GAME ===== -->
+  <script src="game.js"></script>
 
-<script src="game.js"></script>
+  <!-- ===== PANEL TOGGLE ===== -->
+  <script>
+    const btn = document.getElementById("toggleInfo");
+    const panel = document.getElementById("infoPanel");
+    const layout = document.querySelector(".main-layout");
+    const frame = document.querySelector(".page-frame");
+
+    btn.onclick = () => {
+      panel.classList.toggle("hidden");
+
+      const hidden = panel.classList.contains("hidden");
+      btn.textContent = hidden ? "Hiện bảng" : "Ẩn bảng";
+
+      layout.classList.toggle("single", hidden);
+      frame.classList.toggle("single", hidden);
+    };
+  </script>
+
 </body>
 </html>
-
