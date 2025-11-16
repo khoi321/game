@@ -659,6 +659,34 @@ const lapphuongTrinh = [
   window.addEventListener('keydown', e => { keys[e.key]=true; if(e.key==='r'||e.key==='R') restart(); });
   window.addEventListener('keyup', e => keys[e.key]=false);
   const rand = (a,b)=>a+Math.random()*(b-a);
+// === MOBILE TOUCH CONTROL ===
+canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+
+    // Nếu chạm 2 ngón -> Nitro
+    if (e.touches.length >= 2) {
+        keys[' '] = true;
+        return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+
+    // Trái = rẽ trái
+    if (x < rect.width / 2) {
+        keys['ArrowLeft'] = true;
+    }
+    // Phải = rẽ phải
+    else {
+        keys['ArrowRight'] = true;
+    }
+}, { passive:false });
+
+canvas.addEventListener('touchend', e => {
+    keys['ArrowLeft'] = false;
+    keys['ArrowRight'] = false;
+    keys[' '] = false;  // tắt Nitro
+});
 
   // SPAWN
   function spawn(dt){
@@ -753,59 +781,101 @@ function showPopup() {
 
   function update(dt){
     if(!running) return;
-    const moveSpeed = player.speed*(dt/16);
-    if(keys['ArrowLeft']||keys['a']) player.x-=moveSpeed;
-    if(keys['ArrowRight']||keys['d']) player.x+=moveSpeed;
-    if(keys['ArrowUp']||keys['w']) player.y-=moveSpeed;
-    if(keys['ArrowDown']||keys['s']) player.y+=moveSpeed;
 
-    player.x=Math.max(40+player.w/2, Math.min(W-40-player.w/2, player.x));
-    player.y=Math.max(player.h/2, Math.min(H-player.h/2, player.y));
+    const moveSpeed = player.speed * (dt / 16);
 
-    if((keys[' ']||keys['Spacebar']) && player.nitro>0){ player.invincible=true; player.boostTimer=1; player.nitro-=player.nitroConsump*(dt/1000); if(player.nitro<0)player.nitro=0; }
-    else{ if(player.shieldTimer<=0)player.invincible=false; player.boostTimer=0; }
+    // Điều khiển bằng phím
+    if (keys['ArrowLeft'] || keys['a']) player.x -= moveSpeed;
+    if (keys['ArrowRight'] || keys['d']) player.x += moveSpeed;
+    if (keys['ArrowUp'] || keys['w']) player.y -= moveSpeed;
+    if (keys['ArrowDown'] || keys['s']) player.y += moveSpeed;
 
-    if(player.shieldTimer>0){ player.shieldTimer-=dt; if(player.shieldTimer<=0)player.invincible=false; }
+    // Giới hạn xe trong đường
+    player.x = Math.max(40 + player.w/2, Math.min(W - 40 - player.w/2, player.x));
+    player.y = Math.max(player.h/2, Math.min(H - player.h/2, player.y));
 
-    difficultyTime+=dt;
-    const speedMultiplier = 1 + Math.min(1.5,difficultyTime/30000);
+    // Nitro
+    if ((keys[' '] || keys['Spacebar']) && player.nitro > 0) {
+        player.invincible = true;
+        player.boostTimer = 1;
+        player.nitro -= player.nitroConsump * (dt / 1000);
+        if (player.nitro < 0) player.nitro = 0;
+    } else {
+        if (player.shieldTimer <= 0) player.invincible = false;
+        player.boostTimer = 0;
+    }
+
+    // Shield
+    if (player.shieldTimer > 0) {
+        player.shieldTimer -= dt;
+        if (player.shieldTimer <= 0) player.invincible = false;
+    }
+
+    difficultyTime += dt;
+    const speedMultiplier = 1 + Math.min(1.5, difficultyTime / 30000);
+
     spawn(dt);
 
-    for(let i=enemies.length-1;i>=0;i--){
-      const e=enemies[i];
-      const dtSec=dt/1000;
-      const speedBoost=Math.min((Date.now()-startTime)/1000*0.0015,1.2);
-      const currentSpeed = e.speed*90*(speedMultiplier/1.4)*(1+Math.max(0,score/1200));
-      e.y += currentSpeed*(player.boostTimer?2:1)*dtSec+speedBoost;
+    // Enemy update & collision
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        const dtSec = dt / 1000;
+        const speedBoost = Math.min((Date.now() - startTime) / 1000 * 0.0015, 1.2);
 
-      if(e.y>H+200){ enemies.splice(i,1); score+=1; }
+        const currentSpeed =
+            e.speed * 90 *
+            (speedMultiplier / 1.4) *
+            (1 + Math.max(0, score / 1200));
 
-      if(!player.invincible){
-        const ebox={x:e.x-e.w/2, y:e.y-e.h/2, w:e.w, h:e.h};
-        const pbox={x:player.x-player.w/2, y:player.y-player.h/2, w:player.w, h:player.h};
-        if(rectIntersect(ebox,pbox)){
-          if(score>best){best=score; localStorage.setItem('nv_best',best); bestEl.textContent=best;}
-          showPopup();
+        e.y += currentSpeed * (player.boostTimer ? 2 : 1) * dtSec + speedBoost;
+
+        if (e.y > H + 200) {
+            enemies.splice(i, 1);
+            score += 1;
         }
-      }
+
+        if (!player.invincible) {
+            const ebox = { x: e.x - e.w/2, y: e.y - e.h/2, w: e.w, h: e.h };
+            const pbox = { x: player.x - player.w/2, y: player.y - player.h/2, w: player.w, h: player.h };
+
+            if (rectIntersect(ebox, pbox)) {
+                if (score > best) {
+                    best = score;
+                    localStorage.setItem('nv_best', best);
+                    bestEl.textContent = best;
+                }
+                showPopup();
+            }
+        }
     }
 
-    for(let i=pickups.length-1;i>=0;i--){
-      const p=pickups[i]; p.x=lanes[p.lane];
-      const d=Math.hypot(p.x-player.x,p.y-player.y);
-      if(d < p.r + Math.max(player.w,player.h)*0.35){
-        if(p.type==='nitro') player.nitro = Math.min(player.nitroMax,player.nitro+28);
-        else if(p.type==='shield'){ player.invincible=true; player.shieldTimer=6000;}
-        pickups.splice(i,1);
-        score+=2;
-      }
+    // Pickups
+    for (let i = pickups.length - 1; i >= 0; i--) {
+        const p = pickups[i];
+        p.x = lanes[p.lane];
+
+        const d = Math.hypot(p.x - player.x, p.y - player.y);
+
+        if (d < p.r + Math.max(player.w, player.h) * 0.35) {
+            if (p.type === 'nitro')
+                player.nitro = Math.min(player.nitroMax, player.nitro + 28);
+            else if (p.type === 'shield') {
+                player.invincible = true;
+                player.shieldTimer = 6000;
+            }
+
+            pickups.splice(i, 1);
+            score += 2;
+        }
     }
 
-    score+=dt/120;
+    // Score & UI
+    score += dt / 120;
     scoreEl.textContent = Math.floor(score);
     speedEl.textContent = speedMultiplier.toFixed(2);
-    nitroMeterEl.style.width=Math.max(0,Math.min(100,player.nitro))+'%';
-  }
+    nitroMeterEl.style.width = Math.max(0, Math.min(100, player.nitro)) + '%';
+}
+
 
   function draw(){
     ctx.clearRect(0,0,W,H);
