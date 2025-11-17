@@ -1,144 +1,569 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <title>Né Xe • Pro Edition</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>Faby Biord Siêu Đẹp</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  <!-- FONT ĐẸP -->
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    body {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #3b82f6 0%, #0f172a 45%, #020617 100%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #f9fafb;
+      overflow: hidden;
+    }
 
-  <link rel="stylesheet" href="style.css">
+    .game-wrapper {
+      position: relative;
+      width: 420px;
+      height: 640px;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow:
+        0 20px 40px rgba(15, 23, 42, 0.8),
+        0 0 0 2px rgba(148, 163, 184, 0.4);
+      background: linear-gradient(#60a5fa, #1d4ed8);
+    }
+
+    /* Gradient viền giả 3D */
+    .game-wrapper::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      background: conic-gradient(
+        from 180deg,
+        #38bdf8,
+        #a855f7,
+        #f97316,
+        #22c55e,
+        #38bdf8
+      );
+      filter: blur(6px);
+      opacity: 0.5;
+      z-index: -1;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #60a5fa 0%, #1d4ed8 40%, #065f46 100%);
+    }
+
+    /* HUD / overlay */
+    .hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 18px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      text-shadow: 0 2px 4px rgba(15, 23, 42, 0.8);
+    }
+
+    .logo {
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      font-size: 14px;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .logo-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #facc15, #f97316);
+      box-shadow: 0 0 10px rgba(250, 204, 21, 0.9);
+    }
+
+    .score-box {
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .score-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #9ca3af;
+    }
+
+    .score-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fefce8;
+    }
+
+    .best-score {
+      font-size: 11px;
+      color: #a5b4fc;
+    }
+
+    .center-message {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .card {
+      padding: 18px 22px;
+      border-radius: 20px;
+      background: rgba(15, 23, 42, 0.80);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(18px);
+      min-width: 260px;
+      text-align: center;
+      animation: float 2s ease-in-out infinite;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .card-sub {
+      font-size: 13px;
+      color: #cbd5f5;
+      margin-bottom: 10px;
+    }
+
+    .card-hint {
+      font-size: 12px;
+      color: #a5b4fc;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+    }
+
+    .bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      font-size: 11px;
+      color: rgba(226, 232, 240, 0.8);
+      text-shadow: 0 2px 4px rgba(15, 23, 42, 0.9);
+    }
+
+    .pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+  </style>
 </head>
 <body>
-  <div class="bg-gradient"></div>
+  <div class="game-wrapper">
+    <canvas id="game" width="420" height="640"></canvas>
 
-  <div class="page-frame">
-    <!-- ======= TOP BAR ======= -->
-    <header class="top-bar">
-      <div class="brand">
-        <span class="brand-dot"></span>
-        <span class="brand-text">NÉ XE</span>
-        <span class="brand-sub">Pro Edition</span>
+    <div class="hud">
+      <div class="top-bar">
+        <div class="logo">
+          <span class="logo-dot"></span>
+          FABY BIORD
+        </div>
+        <div class="score-box">
+          <div>
+            <div class="score-label">Score</div>
+            <div class="score-value" id="score">0</div>
+          </div>
+          <div class="best-score">Best: <span id="bestScore">0</span></div>
+        </div>
       </div>
 
-      <div class="top-right-controls">
-        <div class="top-right-hint">
-          ← → / A D • Space = Nitro
-        </div>
-
-        <button id="toggleInfo" class="toggle-btn">Ẩn bảng</button>
+      <div class="bottom-bar">
+        <div class="pill">Nhấn Space hoặc Click để bay</div>
+        <div class="pill">Made with ♥ by Bạn</div>
       </div>
-    </header>
+    </div>
 
-    <!-- ======= MAIN LAYOUT ======= -->
-    <main class="main-layout">
-      <section class="game-shell">
-
-        <!-- ===== HUD ===== -->
-        <div id="hud" class="hud">
-          <div class="hud-item">
-            🧮 <span>Điểm:</span> <b id="score">0</b>
-          </div>
-
-          <div class="hud-item">
-            🏆 <span>Kỷ lục:</span> <b id="best">0</b>
-          </div>
-
-          <div class="hud-item">
-            ⚡ <span>Tốc độ:</span> <b id="speed">0</b>
-          </div>
-
-          <div class="hud-item">
-            🔥 Nitro:
-            <div id="nitroBar" class="nitro-bar">
-              <div id="nitroMeter" class="nitro-meter"></div>
-            </div>
-          </div>
-
-          <div class="hud-item">
-            🛡 Shield: <b id="shieldHUD">0s</b>
-          </div>
-
-          <div class="hud-item">
-            ⭐ Free-Pass: <b id="freepassHUD">0</b>
-          </div>
-        </div>
-
-        <!-- ===== GAME CANVAS ===== -->
-        <div id="wrap" class="canvas-wrap">
-          <canvas id="c" width="420" height="640"></canvas>
-        </div>
-
-        <div class="helper-keys">
-          Nhấn <span class="key">Enter</span> để chơi lại
-        </div>
-      </section>
-
-      <!-- ======= INFO PANEL ======= -->
-      <aside id="infoPanel" class="info-panel">
-        <h2>📘 Luật chơi</h2>
-        <ul>
-          <li>← → / A D để điều khiển xe.</li>
-          <li>Space = Nitro cực nhanh.</li>
-          <li>Đụng xe → hiện câu hỏi.</li>
-          <li>Đúng → tiếp tục game.</li>
-          <li>Sai → chỉ thua khi hết Free-Pass.</li>
-        </ul>
-
-        <h3>🎁 Vật phẩm</h3>
-        <ul>
-          <li>🛡 Khiên: Bất tử 7 giây.</li>
-          <li>⭐ Free-Pass: Miễn sai 1 câu (cộng dồn).</li>
-        </ul>
-
-        <h3>💡 Mẹo</h3>
-        <p>
-          Giữ tốc độ cao để farm điểm nhanh.
-          Dùng Nitro khi đường thẳng dài.
-        </p>
-      </aside>
-
-    </main>
-  </div>
-
-  <!-- ===== POPUP CÂU HỎI ===== -->
-  <div id="popup" class="popup">
-    <div id="popupContent" class="popup-content">
-      <div class="popup-title">Câu hỏi Toán</div>
-      <div id="questionText" class="popup-question"></div>
-
-      <input id="answerInput" class="popup-input" placeholder="Nhập đáp án...">
-
-      <div class="popup-buttons">
-        <button id="submitAnswer" class="btn primary">Trả lời</button>
-        <button id="giveUp" class="btn ghost">Từ bỏ</button>
+    <div class="center-message" id="centerMessage">
+      <div class="card">
+        <div class="card-title">Faby Biord</div>
+        <div class="card-sub">Luồn qua ống, đừng chạm là được 😎</div>
+        <div class="card-hint">Nhấn Space hoặc Click để bắt đầu</div>
       </div>
-
-      <div class="popup-note">Nhấn Enter để gửi nhanh.</div>
     </div>
   </div>
 
-  <!-- ===== JS GAME ===== -->
-  <script src="game.js"></script>
-
-  <!-- ===== PANEL TOGGLE ===== -->
   <script>
-    const btn = document.getElementById("toggleInfo");
-    const panel = document.getElementById("infoPanel");
-    const layout = document.querySelector(".main-layout");
-    const frame = document.querySelector(".page-frame");
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
-    btn.onclick = () => {
-      panel.classList.toggle("hidden");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("bestScore");
+    const centerMessage = document.getElementById("centerMessage");
 
-      const hidden = panel.classList.contains("hidden");
-      btn.textContent = hidden ? "Hiện bảng" : "Ẩn bảng";
+    // ---- GAME SETTINGS ----
+    const GRAVITY = 0.35;
+    const FLAP_STRENGTH = -7;
+    const PIPE_GAP = 140;
+    const PIPE_WIDTH = 70;
+    const PIPE_DISTANCE = 220;
+    const FLOOR_HEIGHT = 80;
 
-      layout.classList.toggle("single", hidden);
-      frame.classList.toggle("single", hidden);
+    let bird, pipes, score, bestScore, gameState, frameCount;
+
+    const STATE = {
+      START: "start",
+      PLAYING: "playing",
+      GAMEOVER: "gameover",
     };
-  </script>
 
+    bestScore = Number(localStorage.getItem("faby_best")) || 0;
+    bestEl.textContent = bestScore;
+
+    function resetGame() {
+      bird = {
+        x: 100,
+        y: canvas.height / 2,
+        radius: 16,
+        vy: 0,
+        rotation: 0,
+      };
+
+      pipes = [];
+      score = 0;
+      frameCount = 0;
+      updateScore(0);
+      gameState = STATE.START;
+      centerMessage.style.display = "flex";
+    }
+
+    function startGame() {
+      if (gameState === STATE.PLAYING) return;
+      gameState = STATE.PLAYING;
+      centerMessage.style.display = "none";
+    }
+
+    function gameOver() {
+      gameState = STATE.GAMEOVER;
+      centerMessage.style.display = "flex";
+      centerMessage.querySelector(".card-title").textContent = "Game Over";
+      centerMessage.querySelector(".card-sub").textContent = `Điểm của bạn: ${score}`;
+      centerMessage.querySelector(".card-hint").textContent = "Nhấn Space hoặc Click để chơi lại";
+
+      if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem("faby_best", bestScore);
+        bestEl.textContent = bestScore;
+      }
+    }
+
+    function updateScore(newScore) {
+      score = newScore;
+      scoreEl.textContent = score;
+    }
+
+    // ---- INPUT ----
+    function flap() {
+      if (gameState === STATE.START) {
+        startGame();
+      }
+
+      if (gameState === STATE.GAMEOVER) {
+        // reset rồi chơi lại
+        resetGame();
+        startGame();
+      }
+
+      if (gameState === STATE.PLAYING) {
+        bird.vy = FLAP_STRENGTH;
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+        flap();
+      }
+    });
+
+    window.addEventListener("pointerdown", () => {
+      flap();
+    });
+
+    // ---- DRAW HELPERS ----
+    function drawBackground() {
+      // trời gradient đã có ở CSS, ở đây vẽ mây, mặt trời, núi, đất
+      // Mặt trời
+      const sunX = 70;
+      const sunY = 80;
+      const radius = 32;
+      const grad = ctx.createRadialGradient(sunX - 10, sunY - 10, 10, sunX, sunY, radius);
+      grad.addColorStop(0, "rgba(254, 249, 195, 1)");
+      grad.addColorStop(1, "rgba(250, 204, 21, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mây
+      function drawCloud(x, y, scale) {
+        ctx.fillStyle = "rgba(248, 250, 252, 0.95)";
+        ctx.beginPath();
+        ctx.ellipse(x, y, 30 * scale, 20 * scale, 0, 0, Math.PI * 2);
+        ctx.ellipse(x + 25 * scale, y + 5 * scale, 22 * scale, 16 * scale, 0, 0, Math.PI * 2);
+        ctx.ellipse(x - 25 * scale, y + 6 * scale, 24 * scale, 18 * scale, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const cloudOffset = (frameCount * 0.3) % (canvas.width + 200);
+      drawCloud(canvas.width - cloudOffset, 90, 1);
+      drawCloud(canvas.width + 120 - cloudOffset, 140, 0.9);
+      drawCloud(canvas.width + 280 - cloudOffset, 70, 0.7);
+
+      // Núi / đồi
+      ctx.fillStyle = "#14532d";
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height - FLOOR_HEIGHT - 40);
+      ctx.lineTo(120, canvas.height - FLOOR_HEIGHT - 140);
+      ctx.lineTo(260, canvas.height - FLOOR_HEIGHT - 20);
+      ctx.lineTo(canvas.width, canvas.height - FLOOR_HEIGHT - 80);
+      ctx.lineTo(canvas.width, canvas.height);
+      ctx.lineTo(0, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#166534";
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height - FLOOR_HEIGHT - 60);
+      ctx.lineTo(80, canvas.height - FLOOR_HEIGHT - 110);
+      ctx.lineTo(220, canvas.height - FLOOR_HEIGHT - 30);
+      ctx.lineTo(canvas.width, canvas.height - FLOOR_HEIGHT - 50);
+      ctx.lineTo(canvas.width, canvas.height);
+      ctx.lineTo(0, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawFloor() {
+      const floorY = canvas.height - FLOOR_HEIGHT;
+      ctx.fillStyle = "#065f46";
+      ctx.fillRect(0, floorY, canvas.width, FLOOR_HEIGHT);
+
+      // Vẽ hoa văn cỏ
+      for (let i = 0; i < canvas.width; i += 24) {
+        ctx.fillStyle = i % 48 === 0 ? "#16a34a" : "#22c55e";
+        ctx.beginPath();
+        ctx.ellipse(i, floorY + 10, 18, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Viền sáng phía trên
+      ctx.fillStyle = "#bbf7d0";
+      ctx.fillRect(0, floorY, canvas.width, 3);
+    }
+
+    function drawBird() {
+      const { x, y, radius } = bird;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(bird.rotation);
+
+      // Thân
+      const bodyGrad = ctx.createRadialGradient(-4, -4, 4, 0, 0, radius + 6);
+      bodyGrad.addColorStop(0, "#fde68a");
+      bodyGrad.addColorStop(0.4, "#f59e0b");
+      bodyGrad.addColorStop(1, "#b45309");
+
+      ctx.fillStyle = bodyGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, radius + 2, radius, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cánh (nhún nhún)
+      const wingOffset = Math.sin(frameCount * 0.3) * 4;
+      ctx.fillStyle = "#f97316";
+      ctx.beginPath();
+      ctx.ellipse(-4, wingOffset, radius * 0.7, radius * 0.45, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mắt
+      ctx.fillStyle = "#fefce8";
+      ctx.beginPath();
+      ctx.arc(radius * 0.3, -radius * 0.2, radius * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#020617";
+      ctx.beginPath();
+      ctx.arc(radius * 0.45, -radius * 0.2, radius * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Má hồng
+      ctx.fillStyle = "rgba(248, 113, 113, 0.7)";
+      ctx.beginPath();
+      ctx.arc(-radius * 0.1, radius * 0.1, radius * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mỏ
+      ctx.fillStyle = "#f97316";
+      ctx.beginPath();
+      ctx.moveTo(radius * 0.9, radius * 0.05);
+      ctx.lineTo(radius * 1.4, radius * 0.2);
+      ctx.lineTo(radius * 0.9, radius * 0.35);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawPipes() {
+      pipes.forEach((pipe) => {
+        const topBottom = pipe.gapY - PIPE_GAP / 2;
+        const bottomTop = pipe.gapY + PIPE_GAP / 2;
+
+        // thân ống
+        const pipeGrad = ctx.createLinearGradient(
+          pipe.x,
+          0,
+          pipe.x + PIPE_WIDTH,
+          0
+        );
+        pipeGrad.addColorStop(0, "#16a34a");
+        pipeGrad.addColorStop(0.5, "#22c55e");
+        pipeGrad.addColorStop(1, "#15803d");
+
+        ctx.fillStyle = pipeGrad;
+
+        // Ống trên
+        ctx.fillRect(pipe.x, 0, PIPE_WIDTH, topBottom);
+
+        // Ống dưới
+        ctx.fillRect(pipe.x, bottomTop, PIPE_WIDTH, canvas.height - bottomTop - FLOOR_HEIGHT);
+
+        // Viền sáng
+        ctx.fillStyle = "rgba(190, 242, 100, 0.8)";
+        ctx.fillRect(pipe.x + 4, 0, 4, topBottom);
+        ctx.fillRect(pipe.x + 4, bottomTop, 4, canvas.height - bottomTop - FLOOR_HEIGHT);
+
+        // Nắp ống (trên)
+        ctx.fillStyle = "#16a34a";
+        ctx.fillRect(pipe.x - 4, topBottom - 18, PIPE_WIDTH + 8, 18);
+
+        // Nắp ống (dưới)
+        ctx.fillRect(pipe.x - 4, bottomTop, PIPE_WIDTH + 8, 18);
+      });
+    }
+
+    // ---- GAME LOOP ----
+    function spawnPipe() {
+      const minY = 160;
+      const maxY = canvas.height - FLOOR_HEIGHT - 160;
+      const gapY = Math.random() * (maxY - minY) + minY;
+
+      pipes.push({
+        x: canvas.width + 40,
+        gapY,
+        scored: false,
+      });
+    }
+
+    function update() {
+      frameCount++;
+
+      if (gameState === STATE.PLAYING) {
+        // Bird physics
+        bird.vy += GRAVITY;
+        bird.y += bird.vy;
+
+        // Rotation theo vận tốc
+        bird.rotation = Math.max(
+          -0.4,
+          Math.min(1.0, bird.vy * 0.06)
+        );
+
+        // Pipes
+        if (frameCount % Math.round(PIPE_DISTANCE / 2) === 0) {
+          spawnPipe();
+        }
+
+        pipes.forEach((pipe) => {
+          pipe.x -= 2.6;
+        });
+
+        // Xóa ống ra khỏi màn
+        pipes = pipes.filter((pipe) => pipe.x + PIPE_WIDTH > -20);
+
+        // Check va chạm & tính điểm
+        const floorY = canvas.height - FLOOR_HEIGHT;
+
+        // Va chạm đất / trần
+        if (bird.y + bird.radius > floorY || bird.y - bird.radius < 0) {
+          gameOver();
+        }
+
+        // Va chạm ống
+        pipes.forEach((pipe) => {
+          const inXRange =
+            bird.x + bird.radius > pipe.x &&
+            bird.x - bird.radius < pipe.x + PIPE_WIDTH;
+          const topBottom = pipe.gapY - PIPE_GAP / 2;
+          const bottomTop = pipe.gapY + PIPE_GAP / 2;
+
+          const hitTop = bird.y - bird.radius < topBottom;
+          const hitBottom = bird.y + bird.radius > bottomTop;
+
+          if (inXRange && (hitTop || hitBottom)) {
+            gameOver();
+          }
+
+          // Score
+          if (!pipe.scored && pipe.x + PIPE_WIDTH < bird.x) {
+            pipe.scored = true;
+            updateScore(score + 1);
+          }
+        });
+      }
+
+      // DRAW
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+      drawPipes();
+      drawFloor();
+      drawBird();
+
+      requestAnimationFrame(update);
+    }
+
+    // Init
+    resetGame();
+    update();
+  </script>
 </body>
 </html>
