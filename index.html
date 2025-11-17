@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flappy Bird</title>
   <style>
     * {
@@ -180,6 +181,138 @@
       border: 1px solid rgba(148, 163, 184, 0.5);
     }
 
+    .control-panel {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 120px;
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 12px 25px rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(18px);
+      pointer-events: auto;
+      color: #e2e8f0;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .control-panel h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: #cbd5f5;
+    }
+
+    .control-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .control-list {
+      list-style: none;
+      padding-left: 0;
+      margin-bottom: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 6px 12px;
+    }
+
+    .control-list li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-list code {
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(96, 165, 250, 0.5);
+      font-size: 11px;
+      font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+      color: #bfdbfe;
+    }
+
+    .session-stats {
+      font-size: 11px;
+      color: #a5b4fc;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .session-stats strong {
+      color: #fefce8;
+    }
+
+    .primary-button {
+      pointer-events: auto;
+      border: none;
+      border-radius: 999px;
+      background: linear-gradient(120deg, #34d399, #22d3ee, #818cf8);
+      color: #020617;
+      font-weight: 700;
+      padding: 8px 16px;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(14, 165, 233, 0.35);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .primary-button:focus-visible {
+      outline: 2px solid #facc15;
+      outline-offset: 2px;
+    }
+
+    .primary-button:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 18px 35px rgba(59, 130, 246, 0.45);
+    }
+
+    .primary-button:active {
+      transform: translateY(1px);
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 12px;
+      }
+
+      .game-wrapper {
+        width: 100%;
+        max-width: 420px;
+      }
+
+      .control-panel {
+        bottom: 140px;
+        font-size: 11px;
+      }
+
+      .session-stats {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        animation: none;
+      }
+
+      .primary-button,
+      .control-panel {
+        transition: none;
+      }
+    }
+
     @keyframes float {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-6px); }
@@ -196,10 +329,10 @@
           <span class="logo-dot"></span>
           Flappy Bird
         </div>
-        <div class="score-box">
+        <div class="score-box" aria-live="polite">
           <div>
             <div class="score-label">Score</div>
-            <div class="score-value" id="score">0</div>
+            <div class="score-value" id="score" aria-live="assertive">0</div>
           </div>
           <div class="best-score">Best: <span id="bestScore">0</span></div>
         </div>
@@ -218,6 +351,22 @@
         <div class="card-hint">Nhấn Space hoặc Click để bắt đầu</div>
       </div>
     </div>
+
+    <div class="control-panel" aria-live="polite">
+      <div class="control-header">
+        <h2>Hướng dẫn nhanh</h2>
+        <button type="button" class="primary-button" id="startButton">Chơi ngay</button>
+      </div>
+      <ul class="control-list">
+        <li><code>Space</code> hoặc Click để bay lên</li>
+        <li><code>Giữ nhịp</code> để tránh đâm vào ống</li>
+        <li><code>Esc</code> để quay về màn hình chờ</li>
+      </ul>
+      <div class="session-stats">
+        <span>Điểm gần nhất: <strong id="lastScore">0</strong></span>
+        <span>Kỷ lục hiện tại: <strong id="bestInline">0</strong></span>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -226,6 +375,9 @@
 
     const scoreEl = document.getElementById("score");
     const bestEl = document.getElementById("bestScore");
+    const bestInlineEl = document.getElementById("bestInline");
+    const lastScoreEl = document.getElementById("lastScore");
+    const startButton = document.getElementById("startButton");
     const centerMessage = document.getElementById("centerMessage");
 
     // ---- GAME SETTINGS ----
@@ -236,7 +388,7 @@
     const PIPE_DISTANCE = 220;
     const FLOOR_HEIGHT = 80;
 
-    let bird, pipes, score, bestScore, gameState, frameCount;
+    let bird, pipes, score, bestScore, gameState, frameCount, lastScore;
 
     const STATE = {
       START: "start",
@@ -245,7 +397,19 @@
     };
 
     bestScore = Number(localStorage.getItem("faby_best")) || 0;
-    bestEl.textContent = bestScore;
+    lastScore = null;
+
+    function syncBestDisplays() {
+      bestEl.textContent = bestScore;
+      bestInlineEl.textContent = bestScore;
+    }
+
+    function updateSessionStats() {
+      lastScoreEl.textContent = lastScore === null ? "--" : lastScore;
+    }
+
+    syncBestDisplays();
+    updateSessionStats();
 
     function resetGame() {
       bird = {
@@ -261,6 +425,11 @@
       frameCount = 0;
       updateScore(0);
       gameState = STATE.START;
+      showCenterMessage(
+        "Flappy Bird",
+        "Luồn qua ống, đừng chạm là được 😎",
+        "Nhấn Space, Click hoặc nút Chơi ngay"
+      );
       centerMessage.style.display = "flex";
     }
 
@@ -270,17 +439,31 @@
       centerMessage.style.display = "none";
     }
 
+    function showCenterMessage(title, sub, hint) {
+      const cardTitle = centerMessage.querySelector(".card-title");
+      const cardSub = centerMessage.querySelector(".card-sub");
+      const cardHint = centerMessage.querySelector(".card-hint");
+
+      if (cardTitle) cardTitle.textContent = title;
+      if (cardSub) cardSub.textContent = sub;
+      if (cardHint) cardHint.textContent = hint;
+    }
+
     function gameOver() {
       gameState = STATE.GAMEOVER;
       centerMessage.style.display = "flex";
-      centerMessage.querySelector(".card-title").textContent = "Game Over";
-      centerMessage.querySelector(".card-sub").textContent = `Điểm của bạn: ${score}`;
-      centerMessage.querySelector(".card-hint").textContent = "Nhấn Space hoặc Click để chơi lại";
+      lastScore = score;
+      showCenterMessage(
+        "Game Over",
+        `Điểm của bạn: ${score}`,
+        "Nhấn Space, Click hoặc nút Chơi ngay để thử lại"
+      );
+      updateSessionStats();
 
       if (score > bestScore) {
         bestScore = score;
         localStorage.setItem("faby_best", bestScore);
-        bestEl.textContent = bestScore;
+        syncBestDisplays();
       }
     }
 
@@ -311,9 +494,19 @@
         e.preventDefault();
         flap();
       }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        resetGame();
+      }
     });
 
     window.addEventListener("pointerdown", () => {
+      flap();
+    });
+
+    startButton.addEventListener("click", (event) => {
+      event.preventDefault();
       flap();
     });
 
